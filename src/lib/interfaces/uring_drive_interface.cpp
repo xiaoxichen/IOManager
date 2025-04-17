@@ -66,14 +66,19 @@ uring_drive_channel::~uring_drive_channel() {
 }
 
 struct io_uring_sqe* uring_drive_channel::get_sqe_or_enqueue(drive_iocb* iocb) {
+    LOGINFOMOD(iomgr, "iocb={}, in_flight_ios={}, prepared_ios={}", iocb->to_string(), m_in_flight_ios,
+               m_prepared_ios);
     if (!can_submit()) {
         m_iocb_waitq.push(iocb);
         return nullptr;
     }
     struct io_uring_sqe* sqe = io_uring_get_sqe(&m_ring);
+    LOGINFOMOD(iomgr, "iocb={}, sqe={}", (void *)iocb, (void *)sqe);
     if (!sqe) {
         // No available slots. Before enqueing we submit ios which were added as part of batch processing.
+        LOGINFOMOD(iomgr, "iocb={}, no available slots, submit ios", (void *)iocb);
         submit_ios();
+        LOGINFOMOD(iomgr, "iocb={}, submitted ios, pushing to Q, Q length={}", (void *)iocb, m_iocb_waitq.size());
         m_iocb_waitq.push(iocb);
         return nullptr;
     }
@@ -83,10 +88,12 @@ struct io_uring_sqe* uring_drive_channel::get_sqe_or_enqueue(drive_iocb* iocb) {
 
 void uring_drive_channel::submit_ios() {
     if (m_prepared_ios != 0) {
+        LOGINFOMOD(iomgr, "submitting io");
         const auto ret = io_uring_submit(&m_ring);
         if (static_cast< int >(m_prepared_ios) < ret) {
             DEBUG_ASSERT(false, "prepared ios must be always equal or greater than just-submitted ios");
         }
+        LOGINFOMOD(iomgr, "submitted io, ret={}", ret);
         DEBUG_ASSERT_GT(ret, 0, "Facing an error in io_uring_submit");
         m_in_flight_ios += ret;
 
@@ -97,6 +104,7 @@ void uring_drive_channel::submit_ios() {
 void uring_drive_channel::submit_if_needed(drive_iocb* iocb, struct io_uring_sqe* sqe, bool part_of_batch) {
     io_uring_sqe_set_data(sqe, (void*)iocb);
     ++m_prepared_ios;
+    LOGINFOMOD(iomgr, "iocb={}, sqe={}, part_of_batch={}, prepared_ios={}, submitting IOs", (void *)iocb, (void *)sqe, part_of_batch, m_prepared_ios);
     if (!part_of_batch) { submit_ios(); }
 }
 
@@ -225,8 +233,10 @@ folly::Future< std::error_code > UringDriveInterface::async_write(IODevice* iode
         };
 
         if (iomanager.this_reactor() != nullptr) {
+	    LOGINFOMOD(iomgr, "submitting in this thread, this_reactor={}", (void *)iomanager.this_reactor());
             submit_in_this_thread(iocb, part_of_batch);
         } else {
+	    LOGINFOMOD(iomgr, "submitting in random worker, this_reactor={}", (void *)iomanager.this_reactor());
             iomanager.run_on_forget(reactor_regex::random_worker,
                                     [=]() { submit_in_this_thread(iocb, part_of_batch); });
         }
@@ -255,8 +265,10 @@ folly::Future< std::error_code > UringDriveInterface::async_writev(IODevice* iod
     };
 
     if (iomanager.this_reactor() != nullptr) {
+	LOGINFOMOD(iomgr, "submitting in this thread, this_reactor={}", (void *)iomanager.this_reactor());
         submit_in_this_thread(iocb, part_of_batch);
     } else {
+	LOGINFOMOD(iomgr, "submitting in random worker, this_reactor={}", (void *)iomanager.this_reactor());
         iomanager.run_on_forget(reactor_regex::random_worker, [=]() { submit_in_this_thread(iocb, part_of_batch); });
     }
     return ret;
