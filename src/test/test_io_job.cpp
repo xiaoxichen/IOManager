@@ -57,13 +57,13 @@ TEST(IOMgrTest, basic_io_test) {
             std::filesystem::resize_file(file_path, dev_size);
             ::close(fd);
         }
-        examiner->add_device(dev, O_RDWR);
+        examiner->add_device(dev, O_RDWR|O_DIRECT);
     }
 
     IOJobCfg cfg;
     cfg.max_disk_capacity = dev_size;
     cfg.run_time = SISL_OPTIONS["run_time"].as< uint32_t >();
-    cfg.io_dist = {{io_type_t::write, 100}, {io_type_t::read, 0}};
+    cfg.io_dist = {{io_type_t::write, 50}, {io_type_t::read, 50}};
     cfg.load_type = (load_type_t)SISL_OPTIONS["load_type"].as< uint32_t >();
     cfg.io_blk_size = SISL_OPTIONS["blk_size"].as< uint32_t >()*1024;
     cfg.qdepth = SISL_OPTIONS["qdepth"].as< uint32_t >();

@@ -314,7 +314,7 @@ private:
     }
 
     io_lba_range_t readable_rand_lbas() {
-        return do_get_rand_lbas(lbas_choice_t::atleast_one_valid, lba_validate_t::dont_care);
+        return do_get_rand_lbas(lbas_choice_t::dont_care, lba_validate_t::dont_care);
     }
     io_lba_range_t writeable_rand_lbas() {
         return do_get_rand_lbas(lbas_choice_t::dont_care, lba_validate_t::validate);
